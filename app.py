@@ -1,59 +1,75 @@
-import streamlit as st
-import torch
-import numpy as np
+"""Streamlit interface for the BERT fake-news classifier."""
+
 import os
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-# ✅ Load Hugging Face token from environment
-HF_TOKEN = os.getenv("HF_TOKEN")  # Don't hardcode the token!
+import streamlit as st
 
-# ✅ Hugging Face model name (your private or gated repo)
-MODEL_NAME = "shi13u/fake_news_detection_bert"
+from detector import FakeNewsDetector, InputValidationError
 
-# ✅ Load model and tokenizer securely
-@st.cache_resource
-def load_model():
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, token=HF_TOKEN)
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, token=HF_TOKEN)
-    model.eval()
-    return tokenizer, model
 
-tokenizer, model = load_model()
+st.set_page_config(page_title="Fake News Detection with BERT", page_icon="📰", layout="centered")
+MODEL_NAME = os.getenv("HF_MODEL_NAME", "shi13u/fake_news_detection_bert")
 
-# ✅ Streamlit app config
-st.set_page_config(page_title="📰 Fake News Detector", layout="centered")
 
-# ✅ Title and description
-st.markdown("<h1 style='text-align: center;'>🤖 Fake News Detection Chatbot</h1>", unsafe_allow_html=True)
-st.markdown(
-    "<p style='text-align: center;'>Paste a news snippet below to check if it's <strong>Real ✅</strong> or <strong>Fake ❌</strong> using BERT!</p>",
-    unsafe_allow_html=True
+def _hugging_face_token():
+    """Read an optional Hugging Face token without requiring Streamlit secrets."""
+    try:
+        return st.secrets.get("HF_TOKEN") or os.getenv("HF_TOKEN")
+    except (FileNotFoundError, KeyError):
+        return os.getenv("HF_TOKEN")
+
+
+@st.cache_resource(show_spinner=False)
+def load_detector(model_name, token):
+    return FakeNewsDetector.from_pretrained(model_name=model_name, token=token)
+
+
+st.title("Fake News Detection with BERT")
+st.caption("Classify an English news passage as likely fake or real using a fine-tuned BERT model.")
+st.info(
+    "This is a machine-learning classification demo, not a fact-checking service. "
+    "Verify important claims with trustworthy primary sources."
 )
 
-# ✅ Input field
-user_input = st.text_area("🗞️ Enter News Article or Headline:", height=200)
+with st.form("classification_form"):
+    article = st.text_area(
+        "News text", height=220, max_chars=20_000,
+        placeholder="Paste a headline and article text here...",
+    )
+    submitted = st.form_submit_button("Analyze article", type="primary", use_container_width=True)
 
-# ✅ Button to trigger prediction
-if st.button("🔍 Check Now"):
-    if user_input.strip() == "":
-        st.warning("⚠️ Please enter some text!")
+if submitted:
+    try:
+        with st.spinner("Loading the model and analyzing the text..."):
+            detector = load_detector(MODEL_NAME, _hugging_face_token())
+            result = detector.predict(article)
+    except InputValidationError as exc:
+        st.warning(str(exc))
+    except OSError:
+        st.error("The model could not be downloaded. Check the network connection or model access settings.")
+    except Exception as exc:
+        st.error("Prediction failed. Please try again with a shorter passage.")
+        with st.expander("Technical details"):
+            st.code(str(exc))
     else:
-        # Tokenize input
-        inputs = tokenizer(user_input, return_tensors="pt", padding=True, truncation=True, max_length=512)
-        with torch.no_grad():
-            outputs = model(**inputs)
-            probs = torch.softmax(outputs.logits, dim=1).numpy()[0]
-            pred = np.argmax(probs)
-            confidence = float(np.max(probs) * 100)
+        left, right = st.columns(2)
+        left.metric("Prediction", result.label.title())
+        right.metric("Confidence", f"{result.confidence:.1%}")
+        st.progress(result.confidence)
+        probability_left, probability_right = st.columns(2)
+        probability_left.write(f"**Fake probability:** {result.fake_probability:.1%}")
+        probability_right.write(f"**Real probability:** {result.real_probability:.1%}")
+        if result.was_truncated:
+            st.warning(
+                f"The input contained about {result.token_count} tokens; only the first 512 "
+                "were used because of the model limit."
+            )
+        if result.confidence_band == "low":
+            st.warning("The model is uncertain about this passage. Treat the result cautiously.")
 
-        # Label interpretation (0 = FAKE, 1 = REAL — adjust if needed)
-        if pred == 1:
-            label = "✅ **This looks like REAL news!**"
-            emoji = "🟢"
-        else:
-            label = "❌ **This might be FAKE news!**"
-            emoji = "🔴"
-
-        # ✅ Show result
-        st.markdown(f"### {emoji} {label}")
-        st.markdown(f"📊 **Confidence:** `{confidence:.2f}%`")
+with st.expander("How to interpret the result"):
+    st.write(
+        "The score reflects patterns learned from training data. It does not inspect sources, "
+        "confirm quotations, or search the web. Check the publisher, author, date, supporting "
+        "evidence, and independent reporting before trusting a claim."
+    )

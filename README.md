@@ -1,111 +1,56 @@
-# 📰 Fake News Detection Chatbot using BERT
+# Fake News Detection with BERT
 
-This project is a **Streamlit chatbot** that classifies news text as **Real** ✅ or **Fake** ❌ using a fine-tuned **BERT transformer model**. It uses a Hugging Face-hosted model for live predictions and a simple interface for user input and result display.
+An end-to-end NLP project that fine-tunes BERT for binary fake/real news classification, hosts the trained model on Hugging Face, and serves predictions through a Streamlit application.
 
----
+## Reliability improvements
 
-## 📌 Features
+- Loads and caches the model across Streamlit reruns.
+- Uses model label metadata instead of blindly assuming label order.
+- Validates empty, very short, and excessively long input.
+- Reports truncation at BERT's 512-token limit.
+- Marks confidence below 65% as uncertain and shows both class probabilities.
+- Handles download and prediction failures with useful messages.
+- Includes nine offline unit tests for validation, labels, and probability interpretation.
+- Distinguishes pattern classification from evidence-based fact checking.
 
-* ✅ Fine-tuned BERT model for binary classification
-* ✅ Detects fake news with confidence score
-* ✅ Clean and intuitive Streamlit chatbot interface
-* ✅ Deployed on Streamlit Cloud
-* ✅ Model hosted on Hugging Face Hub
+## Repository structure
 
----
+| File | Purpose |
+| --- | --- |
+| `Fake_News_Detection_BERT.ipynb` | BERT fine-tuning and evaluation workflow |
+| `Upload_model_on_HF.ipynb` | Model and tokenizer upload to Hugging Face |
+| `detector.py` | Reusable inference, validation, and confidence logic |
+| `app.py` | Streamlit user interface |
+| `tests/test_detector.py` | Offline unit tests |
 
-## 📋 Repository Structure
-
-```
-bert_fake_news_detector/
-├── app.py                  # Streamlit application
-├── requirements.txt        # Dependencies
-├── .streamlit/
-│   └── secrets.toml        # (Optional) Hugging Face token (local testing)
-└── README.md               # This file
-```
-
----
-
-## 📊 Model Details
-
-* **Model**: `bert-base-uncased`
-* **Fine-tuned** on: `true.csv` (real news) and `fake.csv` (fake news)
-* **Hosted on**: [Hugging Face Model Hub](https://huggingface.co/shi13u/fake_news_detection_bert)
-* **Classes**: `0 = Fake`, `1 = Real`
-
----
-
-## 🧐 How It Works
-
-1. Users input a news article or headline.
-2. Text is tokenized using the model's tokenizer.
-3. The fine-tuned BERT model generates logits.
-4. The highest softmax score determines the prediction class.
-5. Output is rendered as a label with a confidence percentage.
-
----
-
-## 🚀 Running the App Locally
-
-### 🔧 Requirements
+## Run locally
 
 ```bash
-pip install -r requirements.txt
-```
-
-### 🔑 Set Hugging Face Token (optional for private models)
-
-Create a file `.streamlit/secrets.toml`:
-
-```toml
-HF_TOKEN = "your_hf_token_here"
-```
-
-Then run:
-
-```bash
+python -m venv .venv
+python -m pip install -r requirements.txt
 streamlit run app.py
 ```
 
----
+The default checkpoint is `shi13u/fake_news_detection_bert`. Set `HF_MODEL_NAME` to use another compatible sequence-classification model. Set `HF_TOKEN` for a private checkpoint.
 
-## 🌐 Live Demo
+## Run tests
 
-🔗 [Try the app on Streamlit Cloud](https://fakenewsdetection-kzjxnzujdacfrze8pbplax.streamlit.app/)
+```bash
+python -m unittest discover -s tests -v
+```
 
----
+## Live demo
 
-## 📦 Hugging Face Model Repo
+[Open the Streamlit application](https://fake-news-detection-bert.streamlit.app/)
 
-* 📁 [https://huggingface.co/shi13u/fake\_news\_detection\_bert](https://huggingface.co/shi13u/fake_news_detection_bert)
+## Limitations
 
----
+The training notebook currently samples 100 real and 100 fake articles, so this is a learning prototype rather than a production fact-checker. Its saved outputs do not include a final held-out metric; this repository therefore makes no unsupported accuracy claim. Real-world use would require a larger representative dataset, drift monitoring, calibration, bias analysis, and independent fact verification.
 
-## 📺 Demo Video
+## Technology
 
-📺 `demo.mp4` — A 1-minute walkthrough showing real-time fake/real predictions from the chatbot.
+Python, PyTorch, Transformers, Hugging Face Hub, BERT, Streamlit, and unittest.
 
----
+## Author
 
-## 🧪 Example Inputs
-
-| Input Text                                              | Prediction | Confidence |
-| ------------------------------------------------------- | ---------- | ---------- |
-| "NASA launches Artemis I mission to Moon"               | ✅ Real     | 70.2%      |
-| "Bill Gates plans to microchip the world with vaccines" | ❌ Fake     | 60.8%      |
-
----
-
-## 🛠️ Tools Used
-
-* `transformers` by Hugging Face
-* `BERT-base-uncased`
-* `Streamlit`
-* `torch` (PyTorch)
-
----
-
-## 🤝 Acknowledgments
-
-This project was developed as part of a final assignment for **fake news detection project by PPOC cell IIT Kanpur** to apply transformer-based models in real-world NLP tasks and showcase end-to-end deployment.
+[Sanjay Jangir](https://github.com/Sanjayj23)
